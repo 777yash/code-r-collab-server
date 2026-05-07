@@ -26,9 +26,10 @@ const SNAPSHOT_INTERVAL_MS = 30_000
 
 // Attach snapshot save interval to each new doc
 // y-websocket sets doc.name at runtime but it's not in Y.Doc types
-setContentInitializor(async (doc: Y.Doc & { name: string }) => {
+setContentInitializor(async (doc: Y.Doc) => {
+  const docName = (doc as Y.Doc & { name: string }).name
   const timer = setInterval(() => {
-    saveSnapshot(doc.name, doc)
+    saveSnapshot(docName, doc)
   }, SNAPSHOT_INTERVAL_MS)
 
   // Clean up timer when doc is destroyed
