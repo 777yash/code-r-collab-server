@@ -25,7 +25,7 @@ export async function saveSnapshot(roomId: string, doc: Y.Doc): Promise<void> {
     await fetch(`${API_URL}/api/rooms/${roomId}/snapshot`, {
       method: 'PUT',
       headers: { ...headers(), 'content-type': 'application/octet-stream' },
-      body: update,
+      body: Buffer.from(update),
     })
   } catch (err) {
     console.error(`[snapshot] save failed for room ${roomId}:`, err)

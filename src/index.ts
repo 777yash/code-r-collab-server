@@ -25,7 +25,8 @@ const PORT = Number(process.env.PORT ?? 1234)
 const SNAPSHOT_INTERVAL_MS = 30_000
 
 // Attach snapshot save interval to each new doc
-setContentInitializor(async (doc: Y.Doc) => {
+// y-websocket sets doc.name at runtime but it's not in Y.Doc types
+setContentInitializor(async (doc: Y.Doc & { name: string }) => {
   const timer = setInterval(() => {
     saveSnapshot(doc.name, doc)
   }, SNAPSHOT_INTERVAL_MS)
