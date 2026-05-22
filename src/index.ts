@@ -23,6 +23,9 @@ import { loadSnapshot, saveSnapshot } from './snapshot.js'
 
 const PORT = Number(process.env.PORT ?? 1234)
 const SNAPSHOT_INTERVAL_MS = 30_000
+// Render free tier idles after ~15 min. Heartbeat keeps live connections open;
+// for zero-client wake-ups an external pinger (UptimeRobot / Render cron) is needed.
+const WS_HEARTBEAT_MS = 25_000
 
 // Attach snapshot save interval to each new doc
 // y-websocket sets doc.name at runtime but it's not in Y.Doc types
@@ -61,7 +64,27 @@ const server = http.createServer((_req, res) => {
 
 const wss = new WebSocketServer({ server })
 
+type AliveWS = WebSocket & { isAlive: boolean }
+
+const heartbeat = setInterval(() => {
+  wss.clients.forEach((client) => {
+    const ws = client as AliveWS
+    if (!ws.isAlive) {
+      ws.terminate()
+      return
+    }
+    ws.isAlive = false
+    ws.ping()
+  })
+}, WS_HEARTBEAT_MS)
+
+wss.on('close', () => clearInterval(heartbeat))
+
 wss.on('connection', (ws: WebSocket, req: http.IncomingMessage) => {
+  const alive = ws as AliveWS
+  alive.isAlive = true
+  alive.on('pong', () => { alive.isAlive = true })
+
   // URL: ws://host:1234/<roomId>
   const roomId = (req.url ?? '/').slice(1).split('?')[0]
   console.log(`[ws] client connected → room "${roomId}"`)
