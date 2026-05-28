@@ -20,6 +20,9 @@ const {
 }
 
 import { loadSnapshot, saveSnapshot } from './snapshot.js'
+import { initRedis, wireDocPubSub } from './redis-pubsub.js'
+
+initRedis()
 
 const PORT = Number(process.env.PORT ?? 1234)
 const SNAPSHOT_INTERVAL_MS = 30_000
@@ -27,16 +30,18 @@ const SNAPSHOT_INTERVAL_MS = 30_000
 // for zero-client wake-ups an external pinger (UptimeRobot / Render cron) is needed.
 const WS_HEARTBEAT_MS = 25_000
 
-// Attach snapshot save interval to each new doc
+// Attach snapshot save interval + Redis pub/sub to each new doc
 // y-websocket sets doc.name at runtime but it's not in Y.Doc types
 setContentInitializor(async (doc: Y.Doc) => {
   const docName = (doc as Y.Doc & { name: string }).name
+
   const timer = setInterval(() => {
     saveSnapshot(docName, doc)
   }, SNAPSHOT_INTERVAL_MS)
 
-  // Clean up timer when doc is destroyed
   doc.on('destroy', () => clearInterval(timer))
+
+  wireDocPubSub(docName, doc)
 })
 
 // Wire persistence: load on first join, save on last leave
