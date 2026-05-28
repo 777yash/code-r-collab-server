@@ -31,3 +31,16 @@ export async function saveSnapshot(roomId: string, doc: Y.Doc): Promise<void> {
     console.error(`[snapshot] save failed for room ${roomId}:`, err)
   }
 }
+
+export async function saveAutoSnapshot(roomId: string, doc: Y.Doc): Promise<void> {
+  const update = Y.encodeStateAsUpdate(doc)
+  try {
+    await fetch(`${API_URL}/api/rooms/${roomId}/snapshots/auto`, {
+      method: 'POST',
+      headers: { ...headers(), 'content-type': 'application/octet-stream' },
+      body: Buffer.from(update),
+    })
+  } catch (err) {
+    console.error(`[snapshot] auto-save failed for room ${roomId}:`, err)
+  }
+}

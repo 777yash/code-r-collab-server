@@ -19,13 +19,13 @@ const {
   setContentInitializor: (f: (doc: Y.Doc) => Promise<void>) => void
 }
 
-import { loadSnapshot, saveSnapshot } from './snapshot.js'
+import { loadSnapshot, saveSnapshot, saveAutoSnapshot } from './snapshot.js'
 import { initRedis, wireDocPubSub } from './redis-pubsub.js'
 
 initRedis()
 
 const PORT = Number(process.env.PORT ?? 1234)
-const SNAPSHOT_INTERVAL_MS = 30_000
+const SNAPSHOT_INTERVAL_MS = 60_000
 // Render free tier idles after ~15 min. Heartbeat keeps live connections open;
 // for zero-client wake-ups an external pinger (UptimeRobot / Render cron) is needed.
 const WS_HEARTBEAT_MS = 25_000
@@ -37,6 +37,7 @@ setContentInitializor(async (doc: Y.Doc) => {
 
   const timer = setInterval(() => {
     saveSnapshot(docName, doc)
+    saveAutoSnapshot(docName, doc)
   }, SNAPSHOT_INTERVAL_MS)
 
   doc.on('destroy', () => clearInterval(timer))
