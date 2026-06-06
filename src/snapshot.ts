@@ -1,4 +1,5 @@
 import * as Y from 'yjs'
+import { encodeSnapshot } from './codec.js'
 
 const API_URL = process.env.NEXTJS_API_URL ?? 'http://localhost:3000'
 const SECRET = process.env.NEXTJS_INTERNAL_SECRET ?? ''
@@ -20,7 +21,7 @@ export async function loadSnapshot(roomId: string): Promise<Uint8Array | null> {
 }
 
 export async function saveSnapshot(roomId: string, doc: Y.Doc): Promise<void> {
-  const update = Y.encodeStateAsUpdate(doc)
+  const update = encodeSnapshot(doc)
   try {
     await fetch(`${API_URL}/api/rooms/${roomId}/snapshot`, {
       method: 'PUT',
@@ -33,7 +34,7 @@ export async function saveSnapshot(roomId: string, doc: Y.Doc): Promise<void> {
 }
 
 export async function saveAutoSnapshot(roomId: string, doc: Y.Doc): Promise<void> {
-  const update = Y.encodeStateAsUpdate(doc)
+  const update = encodeSnapshot(doc)
   try {
     await fetch(`${API_URL}/api/rooms/${roomId}/snapshots/auto`, {
       method: 'POST',

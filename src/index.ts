@@ -22,24 +22,40 @@ const {
 }
 
 import { loadSnapshot, saveSnapshot, saveAutoSnapshot } from './snapshot.js'
+import { decodeInto } from './codec.js'
 import { initRedis, wireDocPubSub } from './redis-pubsub.js'
 
 initRedis()
 
 const PORT = Number(process.env.PORT ?? 1234)
-const SNAPSHOT_INTERVAL_MS = 60_000
+const SNAPSHOT_INTERVAL_MS = 30_000
 // Render free tier idles after ~15 min. Heartbeat keeps live connections open;
 // for zero-client wake-ups an external pinger (UptimeRobot / Render cron) is needed.
 const WS_HEARTBEAT_MS = 25_000
+
+function uint8Equals(left: Uint8Array, right: Uint8Array): boolean {
+  if (left.length !== right.length) return false
+  for (let i = 0; i < left.length; i++) {
+    if (left[i] !== right[i]) return false
+  }
+  return true
+}
 
 // Attach snapshot save interval + Redis pub/sub to each new doc
 // y-websocket sets doc.name at runtime but it's not in Y.Doc types
 setContentInitializor(async (doc: Y.Doc) => {
   const docName = (doc as Y.Doc & { name: string }).name
 
+  // Skip the HTTP upload when nothing changed since the last save (idle rooms).
+  // State-vector compare is cheap; avoids encoding/uploading a full snapshot per tick.
+  let lastSavedSV: Uint8Array | null = null
+
   const timer = setInterval(() => {
+    const sv = Y.encodeStateVector(doc)
+    if (lastSavedSV && uint8Equals(sv, lastSavedSV)) return
     saveSnapshot(docName, doc)
     saveAutoSnapshot(docName, doc)
+    lastSavedSV = sv
   }, SNAPSHOT_INTERVAL_MS)
 
   doc.on('destroy', () => clearInterval(timer))
@@ -53,7 +69,7 @@ setPersistence({
   bindState: async (docName: string, doc: Y.Doc) => {
     const snapshot = await loadSnapshot(docName)
     if (snapshot) {
-      Y.applyUpdate(doc, snapshot)
+      decodeInto(doc, snapshot)
       console.log(`[persistence] loaded snapshot for room "${docName}" (${snapshot.byteLength}b)`)
     } else {
       console.log(`[persistence] no snapshot for room "${docName}", starting fresh`)
@@ -106,7 +122,7 @@ async function handleResetDoc(
   }
 
   const tempDoc = new Y.Doc()
-  Y.applyUpdate(tempDoc, snapshotBytes)
+  decodeInto(tempDoc, snapshotBytes)
 
   const snapshotFileList = tempDoc.getMap<string>('file-list')
   const liveFileList = doc.getMap<string>('file-list')
